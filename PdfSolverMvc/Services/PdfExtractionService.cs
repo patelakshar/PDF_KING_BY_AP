@@ -1,7 +1,10 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using PdfSolverMvc.Models;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 
 namespace PdfSolverMvc.Services;
@@ -9,11 +12,16 @@ namespace PdfSolverMvc.Services;
 public class PdfExtractionService : IPdfExtractionService
 {
     private readonly IOcrService _ocrService;
+    private readonly int _minSelectableCharsPerPage;
     private readonly ILogger<PdfExtractionService> _logger;
 
-    public PdfExtractionService(IOcrService ocrService, ILogger<PdfExtractionService> logger)
+    public PdfExtractionService(
+        IOcrService ocrService,
+        IConfiguration configuration,
+        ILogger<PdfExtractionService> logger)
     {
         _ocrService = ocrService;
+        _minSelectableCharsPerPage = Math.Max(1, configuration.GetValue<int?>("Ocr:MinSelectableCharsPerPage") ?? 15);
         _logger = logger;
     }
 
@@ -31,7 +39,7 @@ public class PdfExtractionService : IPdfExtractionService
         var pages = new List<PdfPageContent>();
         var fullTextBuilder = new StringBuilder();
         var notes = new List<string>();
-        int directTextPages = 0;
+        int vectorPages = 0;
         int ocrPages = 0;
         int emptyScannedPages = 0;
 
@@ -45,58 +53,45 @@ public class PdfExtractionService : IPdfExtractionService
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var words = NearestNeighbourWordExtractor.Instance.GetWords(page.Letters).ToList();
-                var (alignedText, tableRows) = ExtractColumnAlignedGrid(words);
+                int selectableChars = words.Sum(w => w.Text?.Trim().Length ?? 0);
+                double pageRotation = page.Rotation.Value;
 
-                string pageType = "Text (Column-Grid)";
+                PdfPageContent pageContent;
 
-                // If page has almost no selectable text, treat as scanned/image page and try OCR
-                if (alignedText.Length < 15)
+                // Path 1: Searchable / Vector PDF page (including rotated vector pages)
+                if (selectableChars >= _minSelectableCharsPerPage)
                 {
-                    var ocrResult = await _ocrService.ExtractTextFromPdfPageAsync(pdfFilePath, page.Number - 1, cancellationToken);
-                    if (ocrResult.Success && !string.IsNullOrWhiteSpace(ocrResult.Text))
+                    pageContent = ExtractVectorPage(page, words, pageRotation);
+                    vectorPages++;
+                }
+                else
+                {
+                    // Path 2: Scanned / Image-only or low-text page -> OCR pipeline
+                    pageContent = await ExtractScannedPageAsync(pdfFilePath, page, words, pageRotation, cancellationToken);
+                    if (pageContent.ExtractionType.StartsWith("OCR", StringComparison.OrdinalIgnoreCase))
                     {
-                        alignedText = ocrResult.Text;
-                        tableRows = ocrResult.Text
-                            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-                            .Select(line => new List<string> { line.Trim() })
-                            .ToList();
-                        pageType = "OCR";
                         ocrPages++;
                     }
                     else
                     {
-                        pageType = "Scanned (No OCR)";
                         emptyScannedPages++;
-                        if (!string.IsNullOrWhiteSpace(ocrResult.Message) && !notes.Contains(ocrResult.Message))
-                        {
-                            notes.Add(ocrResult.Message);
-                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(pageContent.ExtractionNotes) &&
+                        !notes.Contains(pageContent.ExtractionNotes))
+                    {
+                        notes.Add(pageContent.ExtractionNotes);
                     }
                 }
-                else
-                {
-                    directTextPages++;
-                }
 
-                var wordCount = string.IsNullOrWhiteSpace(alignedText)
-                    ? 0
-                    : alignedText.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+                pages.Add(pageContent);
 
-                pages.Add(new PdfPageContent
-                {
-                    PageNumber = page.Number,
-                    ExtractionType = pageType,
-                    WordCount = wordCount,
-                    Content = alignedText,
-                    TableRows = tableRows
-                });
-
-                fullTextBuilder.AppendLine($"--- Page {page.Number} ({pageType}) ---");
-                fullTextBuilder.AppendLine(alignedText);
+                fullTextBuilder.AppendLine($"--- Page {pageContent.PageNumber} ({pageContent.ExtractionType}) ---");
+                fullTextBuilder.AppendLine(pageContent.Content);
                 fullTextBuilder.AppendLine();
             }
 
-            string method = (directTextPages, ocrPages, emptyScannedPages) switch
+            string method = (vectorPages, ocrPages, emptyScannedPages) switch
             {
                 (> 0, 0, 0) => "DirectText",
                 (0, > 0, _) => "OcrFallback",
@@ -105,7 +100,7 @@ public class PdfExtractionService : IPdfExtractionService
                 _ => "DirectText"
             };
 
-            string status = emptyScannedPages > 0 && directTextPages == 0 && ocrPages == 0
+            string status = emptyScannedPages > 0 && vectorPages == 0 && ocrPages == 0
                 ? "PartialOcrNeeded"
                 : "Processed";
 
@@ -130,6 +125,125 @@ public class PdfExtractionService : IPdfExtractionService
         }
     }
 
+    private static PdfPageContent ExtractVectorPage(Page page, List<Word> words, double pageRotation)
+    {
+        // 1) Column-aligned grid reconstruction (preserves tables & sparse matrices)
+        var (alignedText, tableRows) = ExtractColumnAlignedGrid(words);
+
+        // 2) Reading-order layout blocks (preserves multi-column prose, headers, and footers)
+        var blocks = DocstrumBoundingBoxes.Instance.GetBlocks(words);
+        var orderedBlocks = UnsupervisedReadingOrderDetector.Instance.Get(blocks);
+        var readingOrderText = string.Join(
+            Environment.NewLine + Environment.NewLine,
+            orderedBlocks.Select(b => b.Text.Trim()).Where(t => !string.IsNullOrWhiteSpace(t)));
+
+        var finalText = !string.IsNullOrWhiteSpace(alignedText) ? alignedText : readingOrderText;
+        var wordCount = CountWords(finalText);
+        var pageType = pageRotation != 0
+            ? $"Vector (Rotated {pageRotation:0}°)"
+            : "Vector (Column-Grid)";
+
+        return new PdfPageContent
+        {
+            PageNumber = page.Number,
+            ExtractionType = pageType,
+            WordCount = wordCount,
+            Content = finalText,
+            TableRows = tableRows,
+            RawOcrText = readingOrderText != finalText ? readingOrderText : null,
+            RotationDegrees = pageRotation,
+            ExtractionNotes = pageRotation != 0 ? $"Vector page rotated {pageRotation:0}°; coordinates normalized." : null
+        };
+    }
+
+    private async Task<PdfPageContent> ExtractScannedPageAsync(
+        string pdfFilePath,
+        Page page,
+        List<Word> fallbackWords,
+        double pageRotation,
+        CancellationToken cancellationToken)
+    {
+        var ocrResult = await _ocrService.ExtractTextFromPdfPageAsync(pdfFilePath, page.Number - 1, cancellationToken);
+
+        if (ocrResult.Success && !string.IsNullOrWhiteSpace(ocrResult.Text))
+        {
+            var rawOcr = ocrResult.Text;
+            var (reconstructed, tableRows) = ReconstructOcrLayout(rawOcr);
+
+            return new PdfPageContent
+            {
+                PageNumber = page.Number,
+                ExtractionType = "OCR",
+                WordCount = CountWords(reconstructed),
+                Content = reconstructed,
+                TableRows = tableRows,
+                RawOcrText = rawOcr,
+                OcrConfidence = ocrResult.Confidence,
+                SelectedPsm = ocrResult.SelectedPsm,
+                RotationDegrees = ocrResult.AppliedRotationDegrees ?? pageRotation,
+                ExtractionNotes = ocrResult.Message
+            };
+        }
+
+        // Preserve any sparse vector words or raw OCR fallback if OCR failed or confidence was empty
+        var sparseVectorText = string.Join(" ", fallbackWords.Select(w => w.Text).Where(t => !string.IsNullOrWhiteSpace(t)));
+        var bestFallback = !string.IsNullOrWhiteSpace(ocrResult.RawFallbackText)
+            ? ocrResult.RawFallbackText
+            : sparseVectorText;
+
+        var tableFallback = string.IsNullOrWhiteSpace(bestFallback)
+            ? new List<List<string>>()
+            : new List<List<string>> { new() { bestFallback } };
+
+        return new PdfPageContent
+        {
+            PageNumber = page.Number,
+            ExtractionType = "Scanned (No OCR)",
+            WordCount = CountWords(bestFallback),
+            Content = bestFallback,
+            TableRows = tableFallback,
+            RawOcrText = ocrResult.RawFallbackText,
+            OcrConfidence = ocrResult.Confidence,
+            SelectedPsm = ocrResult.SelectedPsm,
+            RotationDegrees = ocrResult.AppliedRotationDegrees ?? pageRotation,
+            ExtractionNotes = ocrResult.Message
+        };
+    }
+
+    private static (string ReconstructedText, List<List<string>> TableRows) ReconstructOcrLayout(string rawOcrText)
+    {
+        var lines = rawOcrText
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.TrimEnd())
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToList();
+
+        var tableRows = new List<List<string>>();
+        var sb = new StringBuilder();
+
+        foreach (var line in lines)
+        {
+            // Split on 2+ spaces or tabs to preserve tabular OCR columns
+            var cells = Regex.Split(line.Trim(), @"\s{2,}|\t+")
+                .Select(c => c.Trim())
+                .Where(c => !string.IsNullOrEmpty(c))
+                .ToList();
+
+            if (cells.Count == 0) continue;
+            tableRows.Add(cells);
+            sb.AppendLine(string.Join(" | ", cells));
+        }
+
+        return (sb.ToString().Trim(), tableRows);
+    }
+
+    private static int CountWords(string? text)
+    {
+        return string.IsNullOrWhiteSpace(text)
+            ? 0
+            : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
     /// <summary>
     /// Reconstructs rows using dynamic Y-tolerance (handles tiny 5pt tables as well as normal text),
     /// merges words into cell tokens, and snaps cells into global X-column bins so blank cells
@@ -142,12 +256,10 @@ public class PdfExtractionService : IPdfExtractionService
             return (string.Empty, new List<List<string>>());
         }
 
-        // 1. Dynamic Y-tolerance based on median word height
         var heights = words.Select(w => w.BoundingBox.Height).Where(h => h > 0).OrderBy(h => h).ToList();
         double medianHeight = heights.Count > 0 ? heights[heights.Count / 2] : 8.0;
         double yTolerance = Math.Clamp(medianHeight * 0.45, 1.0, 4.5);
 
-        // 2. Group words into horizontal rows
         var sortedByY = words.OrderByDescending(w => w.BoundingBox.Bottom).ToList();
         var rawRows = new List<List<Word>>();
 
@@ -166,7 +278,6 @@ public class PdfExtractionService : IPdfExtractionService
             }
         }
 
-        // 3. Merge adjacent words on each row into cell tokens
         var rowTokens = new List<List<CellToken>>();
         foreach (var row in rawRows)
         {
@@ -184,7 +295,6 @@ public class PdfExtractionService : IPdfExtractionService
                 double gap = curr.BoundingBox.Left - prev.BoundingBox.Right;
                 double avgCharWidth = Math.Max(2.2, prev.BoundingBox.Width / Math.Max(1, prev.Text.Length));
 
-                // If gap is small, it's part of the same cell/phrase
                 if (gap <= Math.Max(4.5, avgCharWidth * 1.9))
                 {
                     currentText.Append(' ').Append(curr.Text);
@@ -207,8 +317,6 @@ public class PdfExtractionService : IPdfExtractionService
             }
         }
 
-        // 4. Cluster cell X-positions into global column bins
-        // Sort all tokens by width ascending so narrow numeric columns establish crisp anchors before wide headers
         var allCells = rowTokens.SelectMany(r => r).OrderBy(c => c.Right - c.Left).ToList();
         var columns = new List<ColumnCluster>();
 
@@ -227,7 +335,6 @@ public class PdfExtractionService : IPdfExtractionService
 
             if (match != null)
             {
-                // Expand cluster bounds gently only if it's a similar-width cell
                 if ((cell.Right - cell.Left) <= (match.Col.MaxRight - match.Col.MinLeft) * 1.8)
                 {
                     match.Col.MinLeft = Math.Min(match.Col.MinLeft, cell.Left);
@@ -242,7 +349,6 @@ public class PdfExtractionService : IPdfExtractionService
 
         columns = columns.OrderBy(c => c.MinLeft).ToList();
 
-        // 5. Snap every cell in every row into its column bin (preserving blank cells!)
         var tableRows = new List<List<string>>();
         foreach (var row in rowTokens)
         {
@@ -271,15 +377,12 @@ public class PdfExtractionService : IPdfExtractionService
                     : $"{gridRow[bestCol]} {cell.Text}";
             }
 
-            // Trim trailing empty columns per row for cleaner display, or keep uniform?
-            // Keeping uniform width makes CSV and HTML tables align perfectly.
             if (gridRow.Any(c => !string.IsNullOrWhiteSpace(c)))
             {
                 tableRows.Add(gridRow);
             }
         }
 
-        // Remove completely empty columns across the entire page
         var nonEmptyColIndices = new List<int>();
         for (int c = 0; c < columns.Count; c++)
         {
@@ -293,11 +396,9 @@ public class PdfExtractionService : IPdfExtractionService
             .Select(r => nonEmptyColIndices.Select(c => r[c]).ToList())
             .ToList();
 
-        // 6. Format clean pipe-delimited text preserving blank cells ("|  |")
         var textBuilder = new StringBuilder();
         foreach (var row in compactRows)
         {
-            // Trim trailing empty cells for readable text while keeping all leading/middle blank cells
             int lastNonEmpty = row.FindLastIndex(c => !string.IsNullOrWhiteSpace(c));
             if (lastNonEmpty < 0) continue;
 

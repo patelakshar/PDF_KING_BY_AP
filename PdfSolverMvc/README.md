@@ -27,15 +27,4 @@ For OCR, place `eng.traineddata` at:
 PdfSolverMvc/tessdata/eng.traineddata
 ```
 
-The Docker deployment copies the English traineddata package into `/app/tessdata` automatically.
-
-## Docker
-
-From the `LANDT` repository root:
-
-```bash
-docker build -t pdf-solver-mvc .
-docker run --rm -p 8080:8080 pdf-solver-mvc
-```
-
-The container listens on `http://0.0.0.0:8080` and exposes `/health` for hosting health checks.
+OCR uses the local Tesseract traineddata configured by `Ocr:TessDataPath`.

@@ -67,13 +67,31 @@
             foreach (var p in Model.Pages)
             {
                 <div class="card mb-4">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-light d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <span class="fw-semibold">Page @p.PageNumber — Column-Aligned Grid</span>
-                        <span class="small text-muted">
-                            <span class="badge bg-secondary me-1">@p.ExtractionType</span>
-                            @p.TableRows.Count rows &middot; @p.WordCount words
+                        <span class="small text-muted d-flex flex-wrap align-items-center gap-1">
+                            <span class="badge bg-secondary">@p.ExtractionType</span>
+                            @if (p.OcrConfidence.HasValue)
+                            {
+                                <span class="badge bg-info text-dark">Confidence: @($"{p.OcrConfidence.Value:P0}")</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(p.SelectedPsm))
+                            {
+                                <span class="badge bg-light text-dark border">PSM: @p.SelectedPsm</span>
+                            }
+                            @if (p.RotationDegrees.HasValue && Math.Abs(p.RotationDegrees.Value) >= 0.5)
+                            {
+                                <span class="badge bg-light text-dark border">Rotated: @($"{p.RotationDegrees.Value:0.#}°")</span>
+                            }
+                            <span class="ms-1">@p.TableRows.Count rows &middot; @p.WordCount words</span>
                         </span>
                     </div>
+                    @if (!string.IsNullOrWhiteSpace(p.ExtractionNotes))
+                    {
+                        <div class="px-3 py-1 bg-warning bg-opacity-10 border-bottom small text-muted">
+                            <i class="bi bi-info-circle me-1"></i>@p.ExtractionNotes
+                        </div>
+                    }
                     <div class="table-responsive" style="max-height: 70vh;">
                         <table class="table table-sm table-bordered table-hover mb-0 small" style="font-size: 0.78rem; white-space: nowrap;">
                             <tbody>
@@ -89,6 +107,13 @@
                             </tbody>
                         </table>
                     </div>
+                    @if (!string.IsNullOrWhiteSpace(p.RawOcrText))
+                    {
+                        <details class="border-top bg-light px-3 py-2 small">
+                            <summary class="fw-semibold text-muted" style="cursor: pointer;">Raw OCR / Reading-Order Text</summary>
+                            <pre class="mt-2 mb-0" style="white-space: pre-wrap; font-size: 0.8rem;">@p.RawOcrText</pre>
+                        </details>
+                    }
                 </div>
             }
         }

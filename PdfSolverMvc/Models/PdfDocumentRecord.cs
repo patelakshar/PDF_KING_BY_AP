@@ -39,6 +39,10 @@ public class PdfDocumentRecord
     /// </summary>
     public string PageTextsJson { get; set; } = "[]";
 
+    public string? CustomPrompt { get; set; }
+
+    public string? AiSolution { get; set; }
+
     public string? Notes { get; set; }
 }
 
@@ -53,4 +57,29 @@ public class PdfPageContent
     /// Column-aligned 2D grid of extracted rows and cells (preserving blank cells).
     /// </summary>
     public List<List<string>> TableRows { get; set; } = new();
+
+    /// <summary>
+    /// Unmodified raw OCR or raw reading-order text before layout reconstruction.
+    /// </summary>
+    public string? RawOcrText { get; set; }
+
+    /// <summary>
+    /// Mean OCR confidence (0.0 to 1.0) when OCR was used.
+    /// </summary>
+    public float? OcrConfidence { get; set; }
+
+    /// <summary>
+    /// Tesseract PageSegMode that produced the winning OCR result.
+    /// </summary>
+    public string? SelectedPsm { get; set; }
+
+    /// <summary>
+    /// Page rotation in degrees (e.g., 0, 90, 180, 270) or deskew angle.
+    /// </summary>
+    public double? RotationDegrees { get; set; }
+
+    /// <summary>
+    /// Per-page extraction diagnostics (e.g., low-confidence warning, fallback DPI used).
+    /// </summary>
+    public string? ExtractionNotes { get; set; }
 }
