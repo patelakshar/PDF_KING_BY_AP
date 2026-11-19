@@ -4,37 +4,60 @@
 }
 
 <div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card p-4">
-            <div class="d-flex align-items-center mb-3">
-                <div class="bg-danger bg-opacity-10 text-danger rounded-3 p-3 me-3">
-                    <i class="bi bi-file-earmark-arrow-up fs-3"></i>
-                </div>
+    <div class="col-lg-9">
+        <div class="card border-0 overflow-hidden mb-4" style="background: linear-gradient(120deg, #0a192f 0%, #00549a 100%); color: #fff;">
+            <div class="card-body p-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
-                    <h2 class="h4 mb-1">Upload Complex PDFs</h2>
-                    <p class="text-muted mb-0 small">
-                        Supports multi-column layouts, tables, large multi-page PDFs, scanned PDFs (OCR fallback), and AI-powered solving.
+                    <span class="badge bg-warning text-dark fw-semibold mb-2">ENGINEERING DOCUMENT PIPELINE</span>
+                    <h1 class="h3 fw-bold mb-1">Upload Complex Technical PDFs</h1>
+                    <p class="mb-0 text-white-50 small">
+                        Extracts API 610 datasheets, sparse PMS matrices, multi-column specs, embedded logos/images, and scanned pages locally.
                     </p>
                 </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge bg-white bg-opacity-10 border border-white border-opacity-25 px-3 py-2">
+                        <i class="bi bi-table me-1 text-warning"></i>Grid &amp; CSV
+                    </span>
+                    <span class="badge bg-white bg-opacity-10 border border-white border-opacity-25 px-3 py-2">
+                        <i class="bi bi-images me-1 text-warning"></i>Logos &amp; Images
+                    </span>
+                    <span class="badge bg-white bg-opacity-10 border border-white border-opacity-25 px-3 py-2">
+                        <i class="bi bi-eye me-1 text-warning"></i>Tesseract OCR
+                    </span>
+                </div>
             </div>
+        </div>
 
-            <form asp-action="Upload" method="post" enctype="multipart/form-data">
+        <div class="card p-4">
+            <form asp-action="Upload" method="post" enctype="multipart/form-data" id="uploadForm">
                 @Html.AntiForgeryToken()
                 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-                <div class="mb-3">
-                    <label asp-for="Files" class="form-label fw-semibold"></label>
-                    <input asp-for="Files" type="file" accept=".pdf,application/pdf" multiple class="form-control form-control-lg" />
-                    <div class="form-text">You can select one or multiple PDF files (up to 100 MB total).</div>
-                    <span asp-validation-for="Files" class="text-danger small"></span>
+                <label for="fileInput" class="lt-dropzone d-block text-center p-5 mb-3" id="dropZone">
+                    <div class="mb-2">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10 text-primary" style="width: 64px; height: 64px;">
+                            <i class="bi bi-cloud-arrow-up-fill fs-2"></i>
+                        </span>
+                    </div>
+                    <h3 class="h5 fw-bold mb-1">Drag &amp; drop PDF files here, or click to browse</h3>
+                    <p class="text-muted small mb-2">Supports single or batch uploads up to 100 MB total</p>
+                    <span class="btn btn-sm btn-outline-primary px-3">Select PDF Files</span>
+                    <input asp-for="Files" id="fileInput" type="file" accept=".pdf,application/pdf" multiple class="d-none" />
+                </label>
+
+                <span asp-validation-for="Files" class="text-danger small d-block mb-3"></span>
+
+                <div id="selectedFilesList" class="mb-3 d-none">
+                    <div class="small fw-semibold text-muted mb-2">Selected Files:</div>
+                    <ul class="list-group list-group-flush border rounded" id="fileItems"></ul>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-2">
                     <a asp-action="Index" class="btn btn-outline-secondary">
-                        <i class="bi bi-list-ul me-1"></i>View Uploaded List
+                        <i class="bi bi-collection me-1"></i>View Document List
                     </a>
-                    <button type="submit" class="btn btn-primary btn-lg px-4" id="submitBtn">
-                        <i class="bi bi-cpu me-2"></i>Upload &amp; Extract
+                    <button type="submit" class="btn btn-primary btn-lg px-4 fw-semibold" id="submitBtn">
+                        <i class="bi bi-cpu me-2"></i>Upload &amp; Extract PDF
                     </button>
                 </div>
             </form>
@@ -44,10 +67,54 @@
 
 @section Scripts {
     <script>
-        document.querySelector('form').addEventListener('submit', function () {
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const listWrapper = document.getElementById('selectedFilesList');
+        const fileItems = document.getElementById('fileItems');
+
+        function renderFiles(files) {
+            fileItems.innerHTML = '';
+            if (!files || files.length === 0) {
+                listWrapper.classList.add('d-none');
+                return;
+            }
+            listWrapper.classList.remove('d-none');
+            Array.from(files).forEach(f => {
+                const kb = (f.size / 1024).toFixed(1);
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center small';
+                li.innerHTML = `<span><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i><strong>${f.name}</strong></span><span class="badge bg-light text-dark border">${kb} KB</span>`;
+                fileItems.appendChild(li);
+            });
+        }
+
+        fileInput.addEventListener('change', () => renderFiles(fileInput.files));
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            dropZone.addEventListener(evt, e => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, e => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+            });
+        });
+
+        dropZone.addEventListener('drop', e => {
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                renderFiles(fileInput.files);
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', function () {
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing PDFs...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Extracting Content...';
         });
     </script>
 }

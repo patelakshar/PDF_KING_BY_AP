@@ -3,43 +3,201 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - PDF Solver MVC</title>
+    <title>@ViewData["Title"] - L&amp;T PDF Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
     <style>
-        body { background-color: #f6f8fb; }
-        .navbar-brand { font-weight: 700; letter-spacing: -0.3px; }
-        .card { border: 1px solid #e5e9f2; box-shadow: 0 2px 6px rgba(16, 24, 40, 0.04); }
-        .markdown-body pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
-        .markdown-body table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .markdown-body th, .markdown-body td { border: 1px solid #dee2e6; padding: 0.5rem 0.75rem; }
-        .markdown-body th { background: #f8f9fa; }
+        :root {
+            --lt-navy: #0a192f;
+            --lt-blue: #00549a;
+            --lt-blue-light: #0d6efd;
+            --lt-accent: #f59e0b;
+            --lt-bg: #f1f5f9;
+            --lt-border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--lt-bg);
+            color: #1e293b;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .lt-navbar {
+            background: linear-gradient(135deg, #071324 0%, #0d274d 60%, #004682 100%);
+            border-bottom: 3px solid var(--lt-accent);
+            box-shadow: 0 4px 18px rgba(7, 19, 36, 0.22);
+        }
+
+        .lt-brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: #ffffff;
+        }
+
+        .lt-brand-badge:hover {
+            color: #ffffff;
+            opacity: 0.95;
+        }
+
+        .lt-brand-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            letter-spacing: -0.01em;
+            line-height: 1.15;
+        }
+
+        .lt-brand-sub {
+            font-size: 0.72rem;
+            color: #93c5fd;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .lt-nav-link {
+            color: rgba(255, 255, 255, 0.82) !important;
+            font-weight: 500;
+            font-size: 0.9rem;
+            padding: 0.5rem 0.95rem !important;
+            border-radius: 0.5rem;
+            transition: all 0.18s ease;
+        }
+
+        .lt-nav-link:hover {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .lt-nav-link.active {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.16);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+        }
+
+        .lt-author-pill {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #f8fafc;
+            padding: 0.35rem 0.85rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            white-space: nowrap;
+        }
+
+        .lt-author-pill i {
+            color: var(--lt-accent);
+        }
+
+        .card {
+            border: 1px solid var(--lt-border);
+            border-radius: 0.85rem;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+        }
+
+        .lt-kpi-card {
+            border-left: 4px solid var(--lt-blue);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .lt-kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+        }
+
+        .lt-dropzone {
+            border: 2px dashed #94a3b8;
+            border-radius: 0.85rem;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .lt-dropzone:hover, .lt-dropzone.dragover {
+            border-color: var(--lt-blue);
+            background: #eff6ff;
+        }
+
+        .lt-tabs .nav-link {
+            border: none;
+            color: #475569;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 0.65rem 1.15rem;
+            border-radius: 0.6rem;
+        }
+
+        .lt-tabs .nav-link.active {
+            background-color: var(--lt-navy);
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(10, 25, 47, 0.2);
+        }
+
+        pre, code {
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+
+        .lt-footer {
+            margin-top: auto;
+            background: #ffffff;
+            border-top: 1px solid var(--lt-border);
+            font-size: 0.82rem;
+            color: #64748b;
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark lt-navbar py-2 mb-4">
         <div class="container">
-            <a class="navbar-brand" asp-controller="Pdf" asp-action="Upload">
-                <i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>PDF Solver MVC
+            <a class="lt-brand-badge" asp-controller="Pdf" asp-action="Upload">
+                <svg width="42" height="42" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="L&T Logo">
+                    <circle cx="32" cy="32" r="29" fill="#00549A" stroke="#F59E0B" stroke-width="3.5" />
+                    <circle cx="32" cy="32" r="23" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" />
+                    <text x="32" y="39" text-anchor="middle" fill="#FFFFFF" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="21" letter-spacing="-0.5">L&amp;T</text>
+                </svg>
+                <div>
+                    <div class="lt-brand-title">L&amp;T Engineering PDF Studio</div>
+                    <div class="lt-brand-sub">Datasheet, Grid, OCR &amp; Image Extractor</div>
+                </div>
             </a>
+
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
+
             <div class="collapse navbar-collapse" id="mainNav">
-                <ul class="navbar-nav ms-auto gap-2">
+                <ul class="navbar-nav mx-auto gap-1 my-2 my-lg-0">
                     <li class="nav-item">
-                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Upload" ? "active fw-semibold" : "")"
+                        <a class="nav-link lt-nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Upload" ? "active" : "")"
                            asp-controller="Pdf" asp-action="Upload">
                             <i class="bi bi-cloud-arrow-up me-1"></i>1. PDF Upload
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active fw-semibold" : "")"
+                        <a class="nav-link lt-nav-link @(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")"
                            asp-controller="Pdf" asp-action="Index">
-                            <i class="bi bi-list-ul me-1"></i>2. List Information
+                            <i class="bi bi-collection me-1"></i>2. List Information
                         </a>
                     </li>
                 </ul>
+
+                <div class="d-flex align-items-center">
+                    <span class="lt-author-pill">
+                        <i class="bi bi-shield-check"></i>
+                        <span>Local PDF Processing</span>
+                    </span>
+                </div>
             </div>
         </div>
     </nav>
@@ -47,21 +205,27 @@
     <main class="container pb-5">
         @if (TempData["Success"] != null)
         {
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle me-2"></i>@TempData["Success"]
+            <div class="alert alert-success alert-dismissible fade show shadow-sm border-0" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         }
         @if (TempData["Warning"] != null)
         {
-            <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle me-2"></i>@TempData["Warning"]
+            <div class="alert alert-warning alert-dismissible fade show shadow-sm border-0" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Warning"]
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         }
 
         @RenderBody()
     </main>
+
+    <footer class="lt-footer py-3">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span><strong>Larsen &amp; Toubro</strong> &middot; Engineering Document Extraction System</span>
+        </div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     @await RenderSectionAsync("Scripts", required: false)

@@ -36,3 +36,9 @@ Thumbs.db
 *.png
 *.zip
 ilovepdf_jpg-to-pdf/
+
+# Generated exports and test artifacts
+*_extracted.csv
+*.csv
+*.apk
+PDF_KING_BY_AP-main/

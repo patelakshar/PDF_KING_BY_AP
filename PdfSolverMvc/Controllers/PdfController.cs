@@ -41,6 +41,12 @@ public class PdfController : Controller
         return folder;
     }
 
+    private string GetImageFolderForStoredFile(string storedFileName)
+    {
+        var key = storedFileName.Split('_')[0];
+        return Path.Combine(GetUploadFolder(), "ExtractedImages", key);
+    }
+
     // PAGE 1: PDF Upload
     [HttpGet]
     public IActionResult Upload()
@@ -80,7 +86,8 @@ public class PdfController : Controller
                 await file.CopyToAsync(stream, cancellationToken);
             }
 
-            var extraction = await _extractionService.ExtractAsync(fullPath, cancellationToken);
+            var imageFolder = GetImageFolderForStoredFile(storedFileName);
+            var extraction = await _extractionService.ExtractAsync(fullPath, imageFolder, cancellationToken);
 
             var record = new PdfDocumentRecord
             {
@@ -189,6 +196,28 @@ public class PdfController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> ViewImage(int id, string fileName, bool download = false, CancellationToken cancellationToken = default)
+    {
+        var doc = await _db.PdfDocuments.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (doc == null)
+        {
+            return NotFound();
+        }
+
+        var safeName = Path.GetFileName(fileName);
+        var fullPath = Path.Combine(GetImageFolderForStoredFile(doc.StoredFileName), safeName);
+        if (!System.IO.File.Exists(fullPath))
+        {
+            return NotFound("Extracted image was not found.");
+        }
+
+        var bytes = await System.IO.File.ReadAllBytesAsync(fullPath, cancellationToken);
+        return download
+            ? File(bytes, "image/png", safeName)
+            : File(bytes, "image/png");
+    }
+
+    [HttpGet]
     public async Task<IActionResult> ExportText(int id, CancellationToken cancellationToken)
     {
         var doc = await _db.PdfDocuments.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
@@ -286,6 +315,12 @@ public class PdfController : Controller
             if (System.IO.File.Exists(fullPath))
             {
                 System.IO.File.Delete(fullPath);
+            }
+
+            var imageFolder = GetImageFolderForStoredFile(doc.StoredFileName);
+            if (Directory.Exists(imageFolder))
+            {
+                Directory.Delete(imageFolder, recursive: true);
             }
 
             _db.PdfDocuments.Remove(doc);

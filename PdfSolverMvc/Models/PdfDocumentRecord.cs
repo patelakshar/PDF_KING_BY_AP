@@ -82,4 +82,39 @@ public class PdfPageContent
     /// Per-page extraction diagnostics (e.g., low-confidence warning, fallback DPI used).
     /// </summary>
     public string? ExtractionNotes { get; set; }
+
+    /// <summary>
+    /// Embedded raster images/logos extracted separately from this page.
+    /// </summary>
+    public List<PdfExtractedImage> Images { get; set; } = new();
+
+    /// <summary>
+    /// Character accuracy against selectable source text. Null for OCR-only pages.
+    /// </summary>
+    public double? CharacterAccuracy { get; set; }
+
+    /// <summary>
+    /// Word accuracy against selectable source text. Null for OCR-only pages.
+    /// </summary>
+    public double? WordAccuracy { get; set; }
+
+    public int MissingWordCount { get; set; }
+    public int ExtraWordCount { get; set; }
+
+    public bool GroundTruthAvailable { get; set; }
+    public string AccuracyStatus { get; set; } = "Visual Review Required";
+}
+
+public class PdfExtractedImage
+{
+    public string ImageId { get; set; } = string.Empty;
+    public int PageNumber { get; set; }
+    public string RelativeFileName { get; set; } = string.Empty;
+    public int WidthPx { get; set; }
+    public int HeightPx { get; set; }
+    public double BoundsLeft { get; set; }
+    public double BoundsBottom { get; set; }
+    public double BoundsWidth { get; set; }
+    public double BoundsHeight { get; set; }
+    public string? NearbyCaption { get; set; }
 }

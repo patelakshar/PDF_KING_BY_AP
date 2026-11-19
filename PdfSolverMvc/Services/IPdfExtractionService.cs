@@ -12,5 +12,8 @@ public record PdfExtractionResult(
 
 public interface IPdfExtractionService
 {
-    Task<PdfExtractionResult> ExtractAsync(string pdfFilePath, CancellationToken cancellationToken = default);
+    Task<PdfExtractionResult> ExtractAsync(
+        string pdfFilePath,
+        string? imageOutputDirectory = null,
+        CancellationToken cancellationToken = default);
 }

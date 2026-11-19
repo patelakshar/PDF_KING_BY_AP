@@ -52,6 +52,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<IOcrService, OcrService>();
 builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
+builder.Services.AddScoped<ITextPdfService>();
 
 var app = builder.Build();
 

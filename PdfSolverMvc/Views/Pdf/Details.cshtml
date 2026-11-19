@@ -1,47 +1,59 @@
 @model PdfDetailsViewModel
 @{
     ViewData["Title"] = $"3. PDF Content - {Model.Document.OriginalFileName}";
+    var totalImages = Model.Pages.Sum(p => p.Images?.Count ?? 0);
 }
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-    <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1 small">
-                <li class="breadcrumb-item"><a asp-action="Index">List Information</a></li>
-                <li class="breadcrumb-item active">@Model.Document.OriginalFileName</li>
-            </ol>
-        </nav>
-        <h2 class="h4 mb-0">
-            <i class="bi bi-file-earmark-text text-primary me-2"></i>@Model.Document.OriginalFileName
-        </h2>
-    </div>
-    <div class="d-flex gap-2">
-        <a asp-action="ExportText" asp-route-id="@Model.Document.Id" class="btn btn-outline-success">
-            <i class="bi bi-file-earmark-text me-1"></i>Download Aligned Text
-        </a>
-        <a asp-action="ViewFile" asp-route-id="@Model.Document.Id" asp-route-download="true" class="btn btn-outline-secondary">
-            <i class="bi bi-download me-1"></i>Download PDF
-        </a>
-        <a asp-action="Upload" class="btn btn-primary">
-            <i class="bi bi-cloud-arrow-up me-1"></i>Upload Another
-        </a>
-        <a asp-action="ExportCsv" asp-route-id="@Model.Document.Id" class="btn btn-outline-success">
-            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
-        </a>
+<div class="card p-3 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-action="Index" class="text-decoration-none">List Information</a></li>
+                    <li class="breadcrumb-item active">@Model.Document.OriginalFileName</li>
+                </ol>
+            </nav>
+            <h2 class="h4 fw-bold mb-0 d-flex align-items-center gap-2">
+                <i class="bi bi-file-earmark-pdf-fill text-danger"></i>
+                <span>@Model.Document.OriginalFileName</span>
+                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fs-6 fw-semibold">
+                    @Model.Document.ExtractionMethod
+                </span>
+            </h2>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-action="ExportCsv" asp-route-id="@Model.Document.Id" class="btn btn-success fw-semibold">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+            </a>
+            <a asp-action="ExportText" asp-route-id="@Model.Document.Id" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-text me-1"></i>Aligned Text
+            </a>
+            <a asp-action="ViewFile" asp-route-id="@Model.Document.Id" asp-route-download="true" class="btn btn-outline-secondary">
+                <i class="bi bi-download me-1"></i>PDF
+            </a>
+            <a asp-action="Upload" class="btn btn-primary">
+                <i class="bi bi-cloud-arrow-up me-1"></i>Upload Another
+            </a>
+        </div>
     </div>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(Model.Document.Notes))
 {
-    <div class="alert alert-info small">
-        <i class="bi bi-info-circle me-1"></i><strong>Processing Notes:</strong> @Model.Document.Notes
+    <div class="alert alert-info border-0 shadow-sm small mb-4">
+        <i class="bi bi-info-circle-fill me-2"></i><strong>Processing Notes:</strong> @Model.Document.Notes
     </div>
 }
 
-<ul class="nav nav-tabs mb-3" id="contentTabs" role="tablist">
+<ul class="nav nav-pills lt-tabs gap-2 mb-3" id="contentTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="grid-tab" data-bs-toggle="tab" data-bs-target="#grid-pane" type="button">
             <i class="bi bi-table me-1"></i>Structured Grid (@Model.Pages.Count Pages)
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="images-tab" data-bs-toggle="tab" data-bs-target="#images-pane" type="button">
+            <i class="bi bi-images me-1"></i>Extracted Images (@totalImages)
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -66,9 +78,9 @@
         {
             foreach (var p in Model.Pages)
             {
-                <div class="card mb-4">
-                    <div class="card-header bg-light d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <span class="fw-semibold">Page @p.PageNumber — Column-Aligned Grid</span>
+                <div class="card mb-4 overflow-hidden">
+                    <div class="card-header bg-white py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom">
+                        <span class="fw-bold text-dark">Page @p.PageNumber &mdash; Column-Aligned Grid</span>
                         <span class="small text-muted d-flex flex-wrap align-items-center gap-1">
                             <span class="badge bg-secondary">@p.ExtractionType</span>
                             @if (p.OcrConfidence.HasValue)
@@ -83,7 +95,22 @@
                             {
                                 <span class="badge bg-light text-dark border">Rotated: @($"{p.RotationDegrees.Value:0.#}°")</span>
                             }
+                            @if (p.Images != null && p.Images.Count > 0)
+                            {
+                                <span class="badge bg-primary">@p.Images.Count image(s)</span>
+                            }
                             <span class="ms-1">@p.TableRows.Count rows &middot; @p.WordCount words</span>
+                            @if (p.GroundTruthAvailable && p.CharacterAccuracy.HasValue)
+                            {
+                                <span class="badge bg-success">Accuracy: @($"{p.CharacterAccuracy.Value:0.##}%")</span>
+                                <span class="badge bg-light text-dark border">Words: @($"{p.WordAccuracy ?? 0:0.##}%")</span>
+                                <span class="badge bg-light text-dark border">Missing: @p.MissingWordCount</span>
+                                <span class="badge bg-light text-dark border">Extra: @p.ExtraWordCount</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">@p.AccuracyStatus</span>
+                            }
                         </span>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(p.ExtractionNotes))
@@ -93,7 +120,7 @@
                         </div>
                     }
                     <div class="table-responsive" style="max-height: 70vh;">
-                        <table class="table table-sm table-bordered table-hover mb-0 small" style="font-size: 0.78rem; white-space: nowrap;">
+                        <table class="table table-sm table-striped table-bordered table-hover mb-0 small" style="font-size: 0.78rem; white-space: nowrap;">
                             <tbody>
                                 @foreach (var row in p.TableRows)
                                 {
@@ -119,9 +146,62 @@
         }
     </div>
 
+    <div class="tab-pane fade" id="images-pane">
+        @if (totalImages == 0)
+        {
+            <div class="card p-4 text-muted">
+                No separate embedded raster images were detected in this PDF. Vector-drawn schematics remain part of the page graphics and can be viewed in the <strong>Original PDF Viewer</strong> tab.
+            </div>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var p in Model.Pages)
+                {
+                    if (p.Images == null) continue;
+                    foreach (var img in p.Images)
+                    {
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 overflow-hidden">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center small">
+                                    <span class="fw-bold">@img.ImageId <span class="text-muted fw-normal">(Page @img.PageNumber)</span></span>
+                                    <span class="badge bg-light text-dark border">@img.WidthPx &times; @img.HeightPx px</span>
+                                </div>
+                                <div class="card-body d-flex flex-column justify-content-between text-center">
+                                    <div class="p-3 border rounded bg-light mb-3 d-flex align-items-center justify-content-center" style="min-height: 170px;">
+                                        <img src="@Url.Action("ViewImage", "Pdf", new { id = Model.Document.Id, fileName = img.RelativeFileName })"
+                                             alt="@img.ImageId"
+                                             class="img-fluid"
+                                             style="max-height: 220px; object-fit: contain;" />
+                                    </div>
+                                    <div class="text-start small">
+                                        @if (!string.IsNullOrWhiteSpace(img.NearbyCaption))
+                                        {
+                                            <div class="mb-1"><strong>Caption:</strong> @img.NearbyCaption</div>
+                                        }
+                                        <div class="text-muted mb-2">
+                                            <strong>Bounds:</strong> X=@img.BoundsLeft, Y=@img.BoundsBottom, W=@img.BoundsWidth, H=@img.BoundsHeight
+                                        </div>
+                                        <a asp-action="ViewImage"
+                                           asp-route-id="@Model.Document.Id"
+                                           asp-route-fileName="@img.RelativeFileName"
+                                           asp-route-download="true"
+                                           class="btn btn-sm btn-outline-primary w-100 fw-semibold">
+                                            <i class="bi bi-download me-1"></i>Download Image (PNG)
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    </div>
+
     <div class="tab-pane fade" id="raw-pane">
-        <div class="card p-4">
-            <pre class="mb-0" style="white-space: pre-wrap; font-size: 0.85rem;">@Model.Document.RawExtractedText</pre>
+        <div class="card p-4 bg-dark text-light border-0">
+            <pre class="mb-0 text-light" style="white-space: pre-wrap; font-size: 0.84rem;">@Model.Document.RawExtractedText</pre>
         </div>
     </div>
 
