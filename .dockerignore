@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/UploadedPdfs/
+**/pdfsolver.db*
+.git/
+.vs/
+.vscode/
+*.pdf
+*.jpeg
+*.jpg
+*.png
+*.zip
+ilovepdf_jpg-to-pdf/

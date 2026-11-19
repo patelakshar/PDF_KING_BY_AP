@@ -1,0 +1,125 @@
+@model PdfListViewModel
+@{
+    ViewData["Title"] = "2. List Information";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div>
+        <h2 class="h4 mb-0">Uploaded PDFs &amp; Extracted Information</h2>
+        <p class="text-muted small mb-0">Click any document to open its full extracted content and original PDF.</p>
+    </div>
+    <a asp-action="Upload" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Upload More PDFs
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card p-3">
+            <div class="text-muted small">Total PDFs</div>
+            <div class="fs-3 fw-bold">@Model.TotalFiles</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card p-3">
+            <div class="text-muted small">Total Pages</div>
+            <div class="fs-3 fw-bold">@Model.TotalPages</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card p-3">
+            <div class="text-muted small">OCR Processed</div>
+            <div class="fs-3 fw-bold">@Model.OcrProcessedCount</div>
+        </div>
+    </div>
+</div>
+
+<form method="get" asp-action="Index" class="card p-3 mb-4">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-6">
+            <input type="text" name="searchQuery" value="@Model.SearchQuery" class="form-control"
+                   placeholder="Search by file name or extracted text..." />
+        </div>
+        <div class="col-md-3">
+            <select name="filterStatus" class="form-select">
+                <option value="All" selected="@(Model.FilterStatus == "All")">All Methods / Status</option>
+                <option value="DirectText" selected="@(Model.FilterStatus == "DirectText")">Direct Text</option>
+                <option value="OcrFallback" selected="@(Model.FilterStatus == "OcrFallback")">OCR Fallback</option>
+                <option value="HybridOcr" selected="@(Model.FilterStatus == "HybridOcr")">Hybrid OCR</option>
+                <option value="PartialOcrNeeded" selected="@(Model.FilterStatus == "PartialOcrNeeded")">Needs OCR Data</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-dark flex-grow-1">
+                <i class="bi bi-search me-1"></i>Filter
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Reset</a>
+        </div>
+    </div>
+</form>
+
+<div class="card overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>File Name</th>
+                    <th>Pages</th>
+                    <th>Size</th>
+                    <th>Extraction</th>
+                    <th>Uploaded (UTC)</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Documents.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            No PDFs found. <a asp-action="Upload">Upload your first PDF</a> to get started.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var doc in Model.Documents)
+                    {
+                        var sizeKb = Math.Round(doc.FileSizeBytes / 1024.0, 1);
+                        <tr>
+                            <td>
+                                <a asp-action="Details" asp-route-id="@doc.Id" class="fw-semibold text-decoration-none">
+                                    <i class="bi bi-file-earmark-pdf text-danger me-1"></i>@doc.OriginalFileName
+                                </a>
+                            </td>
+                            <td>@doc.PageCount</td>
+                            <td>@(sizeKb >= 1024 ? $"{Math.Round(sizeKb / 1024.0, 2)} MB" : $"{sizeKb} KB")</td>
+                            <td>
+                                <span class="badge bg-secondary">@doc.ExtractionMethod</span>
+                                @if (doc.Status != "Processed")
+                                {
+                                    <span class="badge bg-warning text-dark">@doc.Status</span>
+                                }
+                            </td>
+                            <td class="small text-muted">@doc.UploadedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@doc.Id" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye me-1"></i>View Content
+                                </a>
+                                <a asp-action="ViewFile" asp-route-id="@doc.Id" asp-route-download="true" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@doc.Id" method="post" class="d-inline"
+                                      onsubmit="return confirm('Delete this PDF and its extracted data?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
